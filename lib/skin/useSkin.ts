@@ -34,7 +34,7 @@ function saveUnlocked(skins: Set<SkinId>) {
 
 export function useSkin() {
   const [skin, setSkinState] = useState<SkinId>("default");
-  const [unlocked, setUnlockedState] = useState<Set<SkinId>>(new Set(["default"]));
+  const [unlocked, setUnlockedState] = useState<Set<SkinId>>(new Set<SkinId>(["default"]));
   const [coins, setCoinsState] = useState(0);
   const [mounted, setMounted] = useState(false);
 
