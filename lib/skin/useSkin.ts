@@ -29,7 +29,7 @@ function getUnlockedSkins(): Set<SkinId> {
 
 function saveUnlocked(skins: Set<SkinId>) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(UNLOCKED_STORAGE_KEY, JSON.stringify([...skins]));
+  localStorage.setItem(UNLOCKED_STORAGE_KEY, JSON.stringify(Array.from(skins)));
 }
 
 export function useSkin() {
