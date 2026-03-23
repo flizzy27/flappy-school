@@ -6,13 +6,14 @@ import { useRouter } from "next/navigation";
 import { useSkin } from "@/lib/skin/useSkin";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { signOut } from "@/lib/auth/utils";
-import { SKINS, SKIN_STYLES } from "@/lib/skin/constants";
+import { SkinIcon } from "@/components/skins/SkinIcon";
+import { SKINS, SKIN_DEFS } from "@/lib/skin/constants";
 import { getHighscore } from "@/lib/storage/highscore";
 import { fetchLeaderboard, type LeaderboardEntry } from "@/lib/supabase/highscores";
 
 export default function Home() {
   const router = useRouter();
-  const { skin, setSkin } = useSkin();
+  const { skin, setSkin, coins, isUnlocked } = useSkin();
   const { user, isAuthenticated } = useAuth();
   const [highscore, setHighscore] = useState(0);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -40,9 +41,14 @@ export default function Home() {
           <p className="text-foreground/80 text-lg">
             Tap or press Space to fly. Avoid the pipes!
           </p>
-          {highscore > 0 && (
-            <p className="text-accent font-semibold">Best: {highscore}</p>
-          )}
+          <div className="flex items-center justify-center gap-4">
+            {highscore > 0 && (
+              <p className="text-accent font-semibold">Best: {highscore}</p>
+            )}
+            <p className="text-amber-400 font-semibold flex items-center gap-1">
+              <span>🪙</span> {coins}
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-col gap-4">
@@ -57,6 +63,12 @@ export default function Home() {
             className="px-12 py-4 rounded-2xl border-2 border-border bg-surface/50 hover:bg-surface text-foreground font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
             Settings
+          </Link>
+          <Link
+            href="/shop"
+            className="px-12 py-3 rounded-2xl border-2 border-amber-500/50 bg-amber-500/10 text-amber-400 font-semibold hover:bg-amber-500/20 transition-all"
+          >
+            Skin Shop
           </Link>
           {isAuthenticated ? (
             <button
@@ -90,23 +102,14 @@ export default function Home() {
         )}
 
         <section className="space-y-3 pt-4 border-t border-border">
-          <h2 className="text-sm font-semibold text-foreground/80">
-            Choose your ball
-          </h2>
-          <div className="flex flex-wrap justify-center gap-2">
-            {SKINS.map((s) => (
-              <button
-                key={s}
-                onClick={() => setSkin(s)}
-                className={`w-10 h-10 rounded-full border-2 transition-all hover:scale-110 ${
-                  SKIN_STYLES[s].bg
-                } ${SKIN_STYLES[s].border} ${
-                  skin === s ? "ring-2 ring-accent ring-offset-2 ring-offset-background" : ""
-                }`}
-                title={SKIN_STYLES[s].name}
-              />
-            ))}
+          <h2 className="text-sm font-semibold text-foreground/80">Current skin</h2>
+          <div className="flex items-center justify-center gap-4">
+            <SkinIcon skinId={skin} size={48} />
+            <span className="text-foreground/80">{SKIN_DEFS[skin].name}</span>
           </div>
+          <Link href="/shop" className="text-accent text-sm hover:underline">
+            Change in Skin Shop →
+          </Link>
         </section>
       </div>
     </main>

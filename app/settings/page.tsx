@@ -6,12 +6,11 @@ import { useTheme } from "@/lib/theme/ThemeProvider";
 import { useSkin } from "@/lib/skin/useSkin";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { THEMES, THEME_LABELS, type ThemeId } from "@/lib/theme/constants";
-import { SKINS, SKIN_STYLES } from "@/lib/skin/constants";
 import { getProfile, updateUsername } from "@/lib/supabase/profiles";
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
-  const { skin, setSkin } = useSkin();
+  const { skin, coins } = useSkin();
   const { user, isAuthenticated } = useAuth();
   const [username, setUsername] = useState("");
   const [usernameSaved, setUsernameSaved] = useState(false);
@@ -84,19 +83,16 @@ export default function SettingsPage() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-foreground">Ball skin</h2>
-          <div className="flex flex-wrap gap-2">
-            {SKINS.map((s) => (
-              <button
-                key={s}
-                onClick={() => setSkin(s)}
-                className={`w-12 h-12 rounded-full border-2 transition-all hover:scale-110 ${SKIN_STYLES[s].bg} ${SKIN_STYLES[s].border} ${
-                  skin === s ? "ring-2 ring-accent ring-offset-2 ring-offset-background" : ""
-                }`}
-                title={SKIN_STYLES[s].name}
-              />
-            ))}
-          </div>
+          <h2 className="text-lg font-semibold text-foreground">Skin & coins</h2>
+          <p className="text-sm text-foreground/70 flex items-center gap-2">
+            <span>🪙</span> {coins} coins · Current: {skin}
+          </p>
+          <Link
+            href="/shop"
+            className="block w-full py-3 rounded-xl border-2 border-amber-500/50 bg-amber-500/10 text-amber-400 font-semibold text-center hover:bg-amber-500/20"
+          >
+            Open Skin Shop
+          </Link>
         </section>
 
         <Link

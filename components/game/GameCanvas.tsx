@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { SKIN_STYLES, type SkinId } from "@/lib/skin/constants";
+import type { SkinId } from "@/lib/skin/constants";
 import { POWERUP_CONFIG, type PowerUpType } from "@/lib/game/powerups";
+import { PlayerSkin } from "@/components/skins/PlayerSkin";
 
 const GAME_WIDTH = 400;
 const GAME_HEIGHT = 600;
@@ -16,6 +17,7 @@ const JUMP_STRENGTH = -8;
 const BASE_SPEED = 2.5;
 const MAX_SPEED = 5;
 const POWERUP_SIZE = 24;
+const COIN_SIZE = 20;
 const POWERUP_SPAWN_CHANCE = 0.28;
 
 type GameState = "ready" | "playing" | "gameover";
@@ -34,11 +36,23 @@ interface PowerUp {
   y: number;
 }
 
+interface Coin {
+  id: number;
+  x: number;
+  y: number;
+}
+
+function randomCoinInterval() {
+  return 3 + Math.floor(Math.random() * 8); // 3 to 10
+}
+
 export default function GameCanvas({
   onGameOver,
+  onCoinsCollected,
   skin = "default",
 }: {
   onGameOver: (score: number) => void;
+  onCoinsCollected?: (count: number) => void;
   skin?: SkinId;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -47,6 +61,7 @@ export default function GameCanvas({
   const gameStateRef = useRef<GameState>("ready");
   const [gameState, setGameState] = useState<GameState>("ready");
   const [score, setScore] = useState(0);
+  const [coinsThisRun, setCoinsThisRun] = useState(0);
   const [activeEffectLabel, setActiveEffectLabel] = useState<string | null>(null);
 
   const ballYRef = useRef(GAME_HEIGHT / 2 - BALL_SIZE / 2);
@@ -59,12 +74,19 @@ export default function GameCanvas({
   const speedRef = useRef(BASE_SPEED);
   const frameRef = useRef<number>(0);
   const onGameOverRef = useRef(onGameOver);
+  const onCoinsCollectedRef = useRef(onCoinsCollected);
   onGameOverRef.current = onGameOver;
+  onCoinsCollectedRef.current = onCoinsCollected;
 
   const powerUpsRef = useRef<PowerUp[]>([]);
   const powerUpIdRef = useRef(0);
   const activeEffectRef = useRef<{ type: PowerUpType; until: number } | null>(null);
   const scoreMultiplierRef = useRef(1);
+
+  const coinsRef = useRef<Coin[]>([]);
+  const coinIdRef = useRef(0);
+  const pipesSinceLastCoinRef = useRef(0);
+  const nextCoinIntervalRef = useRef(randomCoinInterval());
 
   const spawnPipe = useCallback(() => {
     const pipesPassed = scoreRef.current;
@@ -82,6 +104,17 @@ export default function GameCanvas({
       gapHeight,
     });
     lastPipeXRef.current = GAME_WIDTH;
+
+    pipesSinceLastCoinRef.current += 1;
+    if (pipesSinceLastCoinRef.current >= nextCoinIntervalRef.current && gapHeight > COIN_SIZE + 24) {
+      pipesSinceLastCoinRef.current = 0;
+      nextCoinIntervalRef.current = randomCoinInterval();
+      coinsRef.current.push({
+        id: coinIdRef.current++,
+        x: GAME_WIDTH + PIPE_WIDTH / 2 - COIN_SIZE / 2,
+        y: gapY - COIN_SIZE / 2,
+      });
+    }
 
     if (Math.random() < POWERUP_SPAWN_CHANCE && gapHeight > POWERUP_SIZE + 20) {
       const types: PowerUpType[] = ["speed", "slow", "multiplier"];
@@ -184,8 +217,14 @@ export default function GameCanvas({
       }
       powerUpsRef.current = powerUpsRef.current.filter((p) => p.x + POWERUP_SIZE > 0);
 
+      for (const coin of coinsRef.current) {
+        coin.x -= speedRef.current * dt;
+      }
+      coinsRef.current = coinsRef.current.filter((c) => c.x + COIN_SIZE > 0);
+
       const ballCenterX = BALL_START_X + BALL_SIZE / 2;
       const ballCenterY = ballYRef.current + BALL_SIZE / 2;
+
       for (const pu of powerUpsRef.current) {
         const puCenterX = pu.x + POWERUP_SIZE / 2;
         const puCenterY = pu.y + POWERUP_SIZE / 2;
@@ -199,6 +238,19 @@ export default function GameCanvas({
           scoreMultiplierRef.current = POWERUP_CONFIG[pu.type].scoreMult;
           setActiveEffectLabel(POWERUP_CONFIG[pu.type].label);
           powerUpsRef.current = powerUpsRef.current.filter((p) => p.id !== pu.id);
+          break;
+        }
+      }
+
+      for (const coin of coinsRef.current) {
+        const coinCenterX = coin.x + COIN_SIZE / 2;
+        const coinCenterY = coin.y + COIN_SIZE / 2;
+        const dx = Math.abs(ballCenterX - coinCenterX);
+        const dy = Math.abs(ballCenterY - coinCenterY);
+        if (dx < (BALL_SIZE + COIN_SIZE) / 2 && dy < (BALL_SIZE + COIN_SIZE) / 2) {
+          coinsRef.current = coinsRef.current.filter((c) => c.id !== coin.id);
+          setCoinsThisRun((n) => n + 1);
+          onCoinsCollectedRef.current?.(1);
           break;
         }
       }
@@ -267,6 +319,16 @@ export default function GameCanvas({
           el.textContent = pu.type === "speed" ? "⚡" : pu.type === "slow" ? "⏱" : "✭";
           container.appendChild(el);
         }
+        for (const coin of coinsRef.current) {
+          const el = document.createElement("div");
+          el.className = "absolute rounded-full bg-amber-400 border-2 border-amber-300 flex items-center justify-center text-xs font-bold text-amber-800";
+          el.style.left = `${coin.x}px`;
+          el.style.top = `${coin.y}px`;
+          el.style.width = `${COIN_SIZE}px`;
+          el.style.height = `${COIN_SIZE}px`;
+          el.textContent = "¢";
+          container.appendChild(el);
+        }
       }
     };
 
@@ -302,6 +364,11 @@ export default function GameCanvas({
         </div>
       )}
 
+      <div className="absolute top-4 left-4 z-10 flex items-center gap-1 text-amber-400 font-bold">
+        <span>🪙</span>
+        <span>{coinsThisRun}</span>
+      </div>
+
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-1">
         <span
           className="text-2xl font-bold text-white"
@@ -316,17 +383,19 @@ export default function GameCanvas({
         )}
       </div>
 
-      {/* Ball */}
+      {/* Player */}
       <div
         ref={ballRef}
-        className={`absolute rounded-full shadow-lg border-2 transition-none ${SKIN_STYLES[skin]?.bg ?? SKIN_STYLES.default.bg} ${SKIN_STYLES[skin]?.border ?? SKIN_STYLES.default.border}`}
+        className="absolute shadow-lg transition-none"
         style={{
           left: BALL_START_X,
           top: initialBallY,
           width: BALL_SIZE,
           height: BALL_SIZE,
         }}
-      />
+      >
+        <PlayerSkin skinId={skin} size={BALL_SIZE} />
+      </div>
 
       {/* Pipes container - imperative DOM updates */}
       <div

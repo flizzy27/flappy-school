@@ -6,6 +6,7 @@ import GameCanvas from "@/components/game/GameCanvas";
 import { useSkin } from "@/lib/skin/useSkin";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { getHighscore, setHighscore } from "@/lib/storage/highscore";
+import { addCoins } from "@/lib/coins/storage";
 import { saveHighscore } from "@/lib/supabase/highscores";
 
 export default function PlayPage() {
@@ -35,7 +36,12 @@ export default function PlayPage() {
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-950">
       <div className="flex flex-col items-center gap-6">
-        <GameCanvas key={gameKey} onGameOver={handleGameOver} skin={skin} />
+        <GameCanvas
+          key={gameKey}
+          onGameOver={handleGameOver}
+          onCoinsCollected={(n) => addCoins(n)}
+          skin={skin}
+        />
 
         {gameOverScore !== null && (
           <div className="flex flex-col items-center gap-4">
