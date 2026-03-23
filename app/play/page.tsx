@@ -1,20 +1,31 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import GameCanvas from "@/components/game/GameCanvas";
 import { useSkin } from "@/lib/skin/useSkin";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { getHighscore, setHighscore } from "@/lib/storage/highscore";
+import { saveHighscore } from "@/lib/supabase/highscores";
 
 export default function PlayPage() {
   const { skin } = useSkin();
+  const { isAuthenticated } = useAuth();
   const [gameOverScore, setGameOverScore] = useState<number | null>(null);
   const [gameKey, setGameKey] = useState(0);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const handleGameOver = useCallback((score: number) => {
+  const handleGameOver = useCallback(async (score: number) => {
     setGameOverScore(score);
     setHighscore(score);
-  }, []);
+    setSaveError(null);
+    if (isAuthenticated) {
+      const result = await saveHighscore(score);
+      if (!result.success && result.error) {
+        setSaveError(result.error);
+      }
+    }
+  }, [isAuthenticated]);
 
   const handlePlayAgain = useCallback(() => {
     setGameOverScore(null);
@@ -33,6 +44,9 @@ export default function PlayPage() {
             </p>
             {getHighscore() === gameOverScore && gameOverScore > 0 && (
               <p className="text-accent font-semibold">New high score!</p>
+            )}
+            {saveError && (
+              <p className="text-sm text-red-400">Could not save to leaderboard: {saveError}</p>
             )}
             <div className="flex gap-4">
               <button

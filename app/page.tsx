@@ -2,17 +2,33 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSkin } from "@/lib/skin/useSkin";
+import { useAuth } from "@/components/providers/AuthProvider";
+import { signOut } from "@/lib/auth/utils";
 import { SKINS, SKIN_STYLES } from "@/lib/skin/constants";
 import { getHighscore } from "@/lib/storage/highscore";
+import { fetchLeaderboard, type LeaderboardEntry } from "@/lib/supabase/highscores";
 
 export default function Home() {
+  const router = useRouter();
   const { skin, setSkin } = useSkin();
+  const { user, isAuthenticated } = useAuth();
   const [highscore, setHighscore] = useState(0);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
 
   useEffect(() => {
     setHighscore(getHighscore());
   }, []);
+
+  useEffect(() => {
+    fetchLeaderboard().then(setLeaderboard);
+  }, []);
+
+  async function handleLogout() {
+    await signOut();
+    router.refresh();
+  }
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-6 transition-colors">
@@ -42,7 +58,36 @@ export default function Home() {
           >
             Settings
           </Link>
+          {isAuthenticated ? (
+            <button
+              onClick={handleLogout}
+              className="px-12 py-3 rounded-2xl text-foreground/70 hover:text-foreground text-sm"
+            >
+              Logout {user?.email}
+            </button>
+          ) : (
+            <Link
+              href="/login"
+              className="px-12 py-3 rounded-2xl text-foreground/70 hover:text-foreground text-sm"
+            >
+              Login to save scores
+            </Link>
+          )}
         </div>
+
+        {leaderboard.length > 0 && (
+          <section className="space-y-2 pt-4 border-t border-border w-full max-w-xs mx-auto">
+            <h2 className="text-sm font-semibold text-foreground/80">Leaderboard</h2>
+            <div className="max-h-40 overflow-y-auto space-y-1 text-sm">
+              {leaderboard.slice(0, 10).map((entry) => (
+                <div key={entry.id} className="flex justify-between">
+                  <span>#{entry.rank} {entry.username || "Anonymous"}</span>
+                  <span className="font-medium">{entry.score}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className="space-y-3 pt-4 border-t border-border">
           <h2 className="text-sm font-semibold text-foreground/80">
