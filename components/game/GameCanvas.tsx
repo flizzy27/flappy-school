@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SKIN_STYLES, type SkinId } from "@/lib/skin/constants";
+import { POWERUP_CONFIG, type PowerUpType } from "@/lib/game/powerups";
 
 const GAME_WIDTH = 400;
 const GAME_HEIGHT = 600;
@@ -13,6 +15,8 @@ const GRAVITY = 0.4;
 const JUMP_STRENGTH = -8;
 const BASE_SPEED = 2.5;
 const MAX_SPEED = 5;
+const POWERUP_SIZE = 24;
+const POWERUP_SPAWN_CHANCE = 0.28;
 
 type GameState = "ready" | "playing" | "gameover";
 
@@ -23,10 +27,19 @@ interface Pipe {
   gapHeight: number;
 }
 
+interface PowerUp {
+  id: number;
+  type: PowerUpType;
+  x: number;
+  y: number;
+}
+
 export default function GameCanvas({
   onGameOver,
+  skin = "default",
 }: {
   onGameOver: (score: number) => void;
+  skin?: SkinId;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const ballRef = useRef<HTMLDivElement>(null);
@@ -34,6 +47,7 @@ export default function GameCanvas({
   const gameStateRef = useRef<GameState>("ready");
   const [gameState, setGameState] = useState<GameState>("ready");
   const [score, setScore] = useState(0);
+  const [activeEffectLabel, setActiveEffectLabel] = useState<string | null>(null);
 
   const ballYRef = useRef(GAME_HEIGHT / 2 - BALL_SIZE / 2);
   const ballVelocityRef = useRef(0);
@@ -47,6 +61,11 @@ export default function GameCanvas({
   const onGameOverRef = useRef(onGameOver);
   onGameOverRef.current = onGameOver;
 
+  const powerUpsRef = useRef<PowerUp[]>([]);
+  const powerUpIdRef = useRef(0);
+  const activeEffectRef = useRef<{ type: PowerUpType; until: number } | null>(null);
+  const scoreMultiplierRef = useRef(1);
+
   const spawnPipe = useCallback(() => {
     const pipesPassed = scoreRef.current;
     const progress = Math.min(pipesPassed / 20, 1);
@@ -55,13 +74,25 @@ export default function GameCanvas({
       gapHeight / 2 +
       Math.random() * (GAME_HEIGHT - gapHeight - 80);
 
+    const pipeId = pipeIdRef.current++;
     pipesRef.current.push({
-      id: pipeIdRef.current++,
+      id: pipeId,
       x: GAME_WIDTH,
       gapY,
       gapHeight,
     });
     lastPipeXRef.current = GAME_WIDTH;
+
+    if (Math.random() < POWERUP_SPAWN_CHANCE && gapHeight > POWERUP_SIZE + 20) {
+      const types: PowerUpType[] = ["speed", "slow", "multiplier"];
+      const type = types[Math.floor(Math.random() * types.length)];
+      powerUpsRef.current.push({
+        id: powerUpIdRef.current++,
+        type,
+        x: GAME_WIDTH + PIPE_WIDTH / 2 - POWERUP_SIZE / 2,
+        y: gapY - POWERUP_SIZE / 2,
+      });
+    }
   }, []);
 
   const checkCollision = useCallback(
@@ -121,9 +152,20 @@ export default function GameCanvas({
 
       if (gameStateRef.current !== "playing") return;
 
+      const now = performance.now();
+      if (activeEffectRef.current && now > activeEffectRef.current.until) {
+        activeEffectRef.current = null;
+        scoreMultiplierRef.current = 1;
+        setActiveEffectLabel(null);
+      }
+
       const pipesPassed = scoreRef.current;
       const progress = Math.min(pipesPassed / 30, 1);
-      speedRef.current = BASE_SPEED + (MAX_SPEED - BASE_SPEED) * progress;
+      let baseSpeed = BASE_SPEED + (MAX_SPEED - BASE_SPEED) * progress;
+      if (activeEffectRef.current) {
+        baseSpeed *= POWERUP_CONFIG[activeEffectRef.current.type].speedMult;
+      }
+      speedRef.current = baseSpeed;
 
       ballVelocityRef.current += GRAVITY * dt;
       ballYRef.current += ballVelocityRef.current * dt;
@@ -137,6 +179,30 @@ export default function GameCanvas({
       }
       pipesRef.current = pipesRef.current.filter((p) => p.x + PIPE_WIDTH > 0);
 
+      for (const pu of powerUpsRef.current) {
+        pu.x -= speedRef.current * dt;
+      }
+      powerUpsRef.current = powerUpsRef.current.filter((p) => p.x + POWERUP_SIZE > 0);
+
+      const ballCenterX = BALL_START_X + BALL_SIZE / 2;
+      const ballCenterY = ballYRef.current + BALL_SIZE / 2;
+      for (const pu of powerUpsRef.current) {
+        const puCenterX = pu.x + POWERUP_SIZE / 2;
+        const puCenterY = pu.y + POWERUP_SIZE / 2;
+        const dx = Math.abs(ballCenterX - puCenterX);
+        const dy = Math.abs(ballCenterY - puCenterY);
+        if (dx < (BALL_SIZE + POWERUP_SIZE) / 2 && dy < (BALL_SIZE + POWERUP_SIZE) / 2) {
+          activeEffectRef.current = {
+            type: pu.type,
+            until: now + POWERUP_CONFIG[pu.type].duration,
+          };
+          scoreMultiplierRef.current = POWERUP_CONFIG[pu.type].scoreMult;
+          setActiveEffectLabel(POWERUP_CONFIG[pu.type].label);
+          powerUpsRef.current = powerUpsRef.current.filter((p) => p.id !== pu.id);
+          break;
+        }
+      }
+
       const lastPipe = pipesRef.current[pipesRef.current.length - 1];
       if (!lastPipe || lastPipeXRef.current - lastPipe.x > 220) {
         spawnPipe();
@@ -148,7 +214,7 @@ export default function GameCanvas({
           !passedPipesRef.current.has(pipe.id)
         ) {
           passedPipesRef.current.add(pipe.id);
-          scoreRef.current += 1;
+          scoreRef.current += scoreMultiplierRef.current;
           setScore(scoreRef.current);
         }
       }
@@ -187,6 +253,20 @@ export default function GameCanvas({
           container.appendChild(topPipe);
           container.appendChild(bottomPipe);
         }
+        for (const pu of powerUpsRef.current) {
+          const el = document.createElement("div");
+          el.className = `absolute rounded-full border-2 border-white/50 ${POWERUP_CONFIG[pu.type].color}`;
+          el.style.left = `${pu.x}px`;
+          el.style.top = `${pu.y}px`;
+          el.style.width = `${POWERUP_SIZE}px`;
+          el.style.height = `${POWERUP_SIZE}px`;
+          el.style.fontSize = "12px";
+          el.style.display = "flex";
+          el.style.alignItems = "center";
+          el.style.justifyContent = "center";
+          el.textContent = pu.type === "speed" ? "⚡" : pu.type === "slow" ? "⏱" : "✭";
+          container.appendChild(el);
+        }
       }
     };
 
@@ -222,17 +302,24 @@ export default function GameCanvas({
         </div>
       )}
 
-      <div
-        className="absolute text-2xl font-bold text-white z-10 top-4 left-1/2 -translate-x-1/2"
-        style={{ textShadow: "0 2px 4px rgba(0,0,0,0.8)" }}
-      >
-        {score}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-1">
+        <span
+          className="text-2xl font-bold text-white"
+          style={{ textShadow: "0 2px 4px rgba(0,0,0,0.8)" }}
+        >
+          {score}
+        </span>
+        {activeEffectLabel && (
+          <span className="text-xs font-semibold text-amber-300 bg-black/50 px-2 py-0.5 rounded">
+            {activeEffectLabel}
+          </span>
+        )}
       </div>
 
       {/* Ball */}
       <div
         ref={ballRef}
-        className="absolute rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 shadow-lg border-2 border-cyan-300 transition-none"
+        className={`absolute rounded-full shadow-lg border-2 transition-none ${SKIN_STYLES[skin]?.bg ?? SKIN_STYLES.default.bg} ${SKIN_STYLES[skin]?.border ?? SKIN_STYLES.default.border}`}
         style={{
           left: BALL_START_X,
           top: initialBallY,
