@@ -15,15 +15,15 @@ function getStoredSkin(): SkinId {
 }
 
 function getUnlockedSkins(): Set<SkinId> {
-  if (typeof window === "undefined") return new Set(["default"]);
+  if (typeof window === "undefined") return new Set<SkinId>(["default"]);
   try {
     const stored = localStorage.getItem(UNLOCKED_STORAGE_KEY);
     const parsed = stored ? JSON.parse(stored) : [];
     const arr = Array.isArray(parsed) ? parsed : [];
-    const valid = arr.filter((s: string) => SKINS.includes(s as SkinId));
-    return new Set(["default", ...valid]);
+    const valid = arr.filter((s: string) => SKINS.includes(s as SkinId)) as SkinId[];
+    return new Set<SkinId>(["default", ...valid]);
   } catch {
-    return new Set(["default"]);
+    return new Set<SkinId>(["default"]);
   }
 }
 
