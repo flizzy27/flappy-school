@@ -56,7 +56,7 @@ export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
     return [];
   }
 
-  const userIds = [...new Set(scoresData.map((s) => s.user_id))];
+  const userIds = Array.from(new Set(scoresData.map((s) => s.user_id)));
   const { data: profilesData } = await supabase
     .from("profiles")
     .select("id, username")
